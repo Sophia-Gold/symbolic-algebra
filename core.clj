@@ -1,77 +1,16 @@
-(ns symbolic-algebra.core)
+(ns symbolic-algebra.core
+  (gen-class
+   :name Number
+   :extends java.lang.Number
+   :constructors {[ ][ ]}))
 
-;GCD 
-(defn gcd [a b]
-  (if (zero? b)
-    a
-    (recur b (mod a b))))
-  
+(defn -Number [this] (num this))
+
 ;TYPES
-(defrecord Real [n])
-(defrecord Rational [n d])
-(defrecord Complex [r i])
-(defrecord Poly [p1 p2])
-(def type-hierarchy [Real Rational Complex Poly])
-
-;INTERFACE
-(defmulti make (fn [x & y] x))
-
-;REALS
-(defmethod make Real [x & y] x)
-
-;RATIONALS
-(defn numer [x] (first x))
-(defn denom [x] (rest x))
-(defn make-rat [n d]
-  (let [g (gcd n d)]
-    (cons (/ n g) (/ d g))))
-(defmethod make Rational [x & y]
-  (make-rat x (first y)))
-
-;COMPLEX
-(defn make-from-real-imag [x y]
-  (cons x y))
-(defn real-part [rect] (first rect))
-(defn imag-part [rect] (rest rect))
-(defn magnitude [polar]
-  (first polar))
-(defn angle [polar]
-  (rest polar))
-(defn make-from-mag-ang [r a]
-  (cons r a))
-(defmethod make Complex [x & y]
-  (make-from-real-imag x (first y)))
-
-;TYPE COERCION
-(defn raise-types [a b proc]
-  (let [type-a (class a)
-        type-b (class b)]
-      (cond
-        (= (class type-b) Complex) (proc (make Complex a 0) b)
-        (= (class type-b) Rational) (proc (make Rational a a) b)
-        (= (class type-a) Complex) (proc (make Complex b 0) a)
-        (= (class type-a) Rational) (proc (make Rational b b) a))))
-
-(defn reduce-type [a]
-  (let [type-a (class a)]
-    (cond
-      (and (= (class type-a) Complex) (= (imag-part a) 0)) (if (= (class (real-part a)) Rational)                                                       
-                                                                 (reduce-type (make Rational (real-part a)))                                                               
-                                                                 (make Real (real-part a)))
-      (and (= (class type-a) Rational) (= (denom a) 1)) (make Real (numer a))
-      :else a)))
-
-;; (defn raise-types [a b proc]
-;;   (let [type-a (class a)
-;;         type-b (class b)]
-;;     (if (< (.indexOf type-hierarchy type-a) (.indexOf type-hierarchy type-b))
-;;       (if (= (type type-b) Real)
-;;         (proc (make Rational a a) b)
-;;         (proc (make Complex a 0) b))
-;;       (if (= (type type-b) Real)
-;;         (proc b (make Rational b b))
-;;         (proc b (make Complex a 0))))))
-
+;; (defrecord Real [n])
+(defrecord Rational [numerator denominator])
+(defrecord Complex [real imaginary])
+(defrecord Poly [variable term-list])
 
 ;PROTOCOLS
 (defprotocol Algebra
@@ -81,7 +20,74 @@
   (div [a b])
   (equal? [a b]))
 
-(extend-type Real
+;Maths
+(defn round [n]
+  (if (>= n 0)
+    (Math/floor n)
+    (Math/ceil n)))
+;; (defn rem [n d]
+;;   (let [q (round (div n d))]
+;;     (sub n (mul d q))))
+(defn mod [num div] 
+  (let [m (rem num div)] 
+    (if (or (= m 0) (= (pos? num) (pos? div)))
+      m 
+      (add m div))))
+(defn gcd [a b]
+  (if (= b 0)
+    a
+    (recur b (mod a b))))
+(defn square [x]
+  (mul x x))
+
+;RATIONALS
+(defn numer [x]
+  (get x :numerator))
+(defn denom [x]
+  (get x :denominator))
+(defn make-rat [n d]
+  (let [g (gcd n d)]
+    (Rational. (div n g) (div d g))))
+
+;COMPLEX
+(defn real-part [rect]
+  (get rect :real))
+(defn imag-part [rect]
+  (get rect :imaginary))
+(defn magnitude [polar]
+  (Math/sqrt (add (square (real-part polar))
+                  (square (imag-part polar)))))
+(defn angle [polar]
+  (Math/atan2 (imag-part polar)
+              (real-part polar)))
+(defn make-from-real-imag [x y]
+  (Complex. x y))
+(defn make-from-mag-ang [r a]
+  (Complex. (round (mul r (Math/cos a)))
+            (round (mul r (Math/sin a)))))
+
+;TYPE COERCION
+(defn raise-types [a b proc]
+  (let [class-a (class a)
+        class-b (class b)]
+    (cond
+      (and (number? a)          (= class-b Rational))  (proc (Rational. a 1) b)
+      (and (number? a)          (= class-b Complex))   (proc (Complex. a 0) b)
+      (and (= class-a Rational) (number? b))           (proc a (Rational. b 1)) 
+      (and (= class-a Rational) (= class-b Complex))   (proc (Complex. a 0) b)
+      (and (= class-a Complex)  (number? b))           (proc a (Complex. b 0))
+      (and (= class-a Complex)  (= class-b Rational))  (proc a (Complex. b 0)))))
+
+(defn reduce-type [a]
+  (let [class-a (class a)]
+    (cond
+      (and (= class-a Complex) (= (imag-part a) 0))  (if (= (class (real-part a)) Rational)                                                      
+                                                       (reduce-type (make-rat (real-part a)))                                                               
+                                                       (-Number (real-part a)))
+      (and (= class-a Rational) (= (denom a) 1))  (-Number (numer a))
+      :else a)))
+
+(extend-type Number
   Algebra
   (add [a b]
     (if (= (class a) (class b))
@@ -92,7 +98,7 @@
       (- a b)
       (raise-types a b sub)))
   (mul [a b]
-     (if (= (class a) (class b))
+    (if (= (class a) (class b))
       (* a b)
       (raise-types a b mul)))
   (div [a b]
@@ -109,61 +115,61 @@
   (add [a b]
     (if (= (class a) (class b))
       (reduce-type
-       (make-rat (+ (* (numer a) (denom b))
-                    (* (numer b) (denom a)))
-                 (* (denom a) (denom b))))
+       (make-rat (add (mul (numer a) (denom b))
+                      (mul (numer b) (denom a)))
+                 (mul (denom a) (denom b))))
       (raise-types a b add)))
   (sub [a b]
     (if (= (class a) (class b))
       (reduce-type
-       (make-rat (- (* (numer a) (denom b))
-                   (* (numer b) (denom a)))
-                (* (denom a) (denom b))))
+       (make-rat (sub (mul (numer a) (denom b))
+                      (mul (numer b) (denom a)))
+                 (mul (denom a) (denom b))))
        (raise-types a b sub)))
   (mul [a b]
     (if (= (class a) (class b))
       (reduce-type
-       (make-rat (* (numer a) (numer b))
-                 (* (denom a) (denom b))))
-      (raise-types a b mul))
+       (make-rat (mul (numer a) (numer b))
+                 (mul (denom a) (denom b))))
+      (raise-types a b mul)))
   (div [a b]
     (if (= (class a) (class b))
       (reduce-type
-       (make-rat (* (numer a) (denom b))
-                  (* (denom a) (numer b))))       
+       (make-rat (mul (numer a) (denom b))
+                 (mul (denom a) (numer b))))       
       (raise-types a b div)))
   (equal? [a b]
     (if (= (class a) (class b))
       (if (and (= (numer a) (numer b))
                (= (denom a) (denom b)))
         true)
-      (raise-types a b equal?)))))
+      (raise-types a b equal?))))
 
 (extend-type Complex
   Algebra
   (add [a b]
     (if (= (class a) (class b))
       (reduce-type
-       (make-from-real-imag (+ (real-part a) (real-part b))
-                            (+ (imag-part a) (imag-part b))))
+       (make-from-real-imag (add (real-part a) (real-part b))
+                            (add (imag-part a) (imag-part b))))
     (raise-types a b add)))
   (sub [a b]
    (if (= (class a) (class b))
       (reduce-type
-       (make-from-real-imag (- (real-part a) (real-part b))
-                            (- (imag-part a) (imag-part b))))
+       (make-from-real-imag (sub (real-part a) (real-part b))
+                            (sub (imag-part a) (imag-part b))))
       (raise-types a b sub)))
   (mul [a b]
     (if (= (class a) (class b))
       (reduce-type
-       (make-from-mag-ang (* (magnitude a) (magnitude b))
-                          (+ (angle a) (angle b))))
+       (make-from-mag-ang (mul (magnitude a) (magnitude b))
+                          (add (angle a) (angle b))))
       (raise-types a b mul)))
   (div [a b]
    (if (= (class a) (class b))
       (reduce-type
-       (make-from-mag-ang (/ (magnitude a) (magnitude b))
-                          (- (angle a) (angle b))))
+       (make-from-mag-ang (div (magnitude a) (magnitude b))
+                          (sub (angle a) (angle b))))
       (raise-types a b div)))
   (equal? [a b]
     (if (= (class a) (class b))
@@ -172,29 +178,11 @@
         true)
       (raise-types a b equal?))))
 
-;test
-(defn -main []
-  (println
-   (add
-    (make Real 1)
-    (make Real 1))))
-
-
 ;POLYNOMIALS
-
-;constructors&selectors
-(defn make-poly [variable term-list]
-  (cons variable term-list))
 (defn variable [p]
-  (first p))
+  (get p :variable))
 (defn term-list [p]
-  (rest p))
-(defn variable? [x]
-  (symbol? x))
-(defn same-variable? [v1 v2]
-  (and (variable? v1) (variable? v2) (= v1 v2)))
-
-;term-lists
+  (get p :term-list))
 (defn order [term]
   (first term))
 (defn coeff [term]
@@ -203,60 +191,135 @@
   (list order coeff))
 (defn first-term [term-list]
   (first term-list))
-(defn the-empty-termlist []
-  '())
 (defn rest-terms [term-list]
   (rest term-list))
-(defn empty-termlist? [term-list]
-  (nil? term-list))
 (defn adjoin-term [term term-list]
   (if (zero? (coeff term))
     term-list
     (cons term term-list)))
+(defn negate-terms [termlist] 
+  (map  
+   (fn [t]
+     (make-term (order t) 
+                (- (coeff t)))) 
+   termlist))
 
-;term-list constructors
+;; ;dense term lists
+;; (defn first-term-dense [term-list] 
+;;   (list
+;;    (first term-list)
+;;    (- (.lastIndexOf term-list) 1)))
+;; (defn adjoin-term-dense [term term-list] 
+;;   (let [exponent (order term)
+;;         len (.lastIndexOf term-list)] 
+;;     (defn iter-adjoin [times terms] 
+;;       (cond (zero? (coeff term)) terms 
+;;             (= exponent times) (cons (coeff term) terms)
+;;             :else (recur (inc times ) (cons 0 terms)))) 
+;;     (iter-adjoin len term-list)))
+
 (defn add-terms [l1 l2]
   (cond
-    (empty-termlist? l1) l2
-    (empty-termlist? l2) l1
+    (empty? l1) l2
+    (empty? l2) l1
     :else
     (let [t1 (first-term l1)
           t2 (first-term l2)]
       (cond
         (> (order t1) (order t2)) (adjoin-term t1 (add-terms (rest-terms l1) l2))
         (< (order t1) (order t2)) (adjoin-term t2 (add-terms l1 (rest-terms l2)))
-        :else (adjoin-term (make-term (order t1)
-                                      (add (coeff t1) (coeff t2)))
-                           (add-terms (rest-terms l1)
-                                      (rest-terms l2)))))))
-(defn mul-term-by-all-terms [t1 L]
-  (if (empty-termlist? L)
-      (the-empty-termlist)
-      (let [t2 (first-term L)]
+        :else 
+        (adjoin-term (make-term (order t1)
+                                (add (coeff t1) (coeff t2)))
+                     (add-terms (rest-terms l1)
+                                (rest-terms l2)))))))
+
+(defn mul-term-by-all-terms [t1 l]
+  (if (empty? l)
+      l
+      (let [t2 (first-term l)]
         (adjoin-term
          (make-term (+ (order t1) (order t2))
                     (mul (coeff t1) (coeff t2)))
-         (mul-term-by-all-terms t1 (rest-terms L))))))
+         (mul-term-by-all-terms t1 (rest-terms l))))))
 (defn mul-terms [l1 l2]
-  (if (empty-termlist? l1)
-      (the-empty-termlist)
+  (if (empty? l1)
+      l1
       (add-terms (mul-term-by-all-terms (first-term l1) l2)
                  (mul-terms (rest-terms l1) l2))))
 
+(defn div-terms [l1 l2]
+  (if (empty? l1)
+      (list () ())
+      (let [t1 (first-term l1)
+            t2 (first-term l2)]
+        (if (> (order t2) (order t1))
+            (list () l1)
+            (let [new-c (div (coeff t1) (coeff t2))
+                  new-o (- (order t1) (order t2))]
+              (let [rest-of-result
+                    (div-terms
+                     (add-terms l1
+                                (negate-terms
+                                 (mul-terms l2
+                                            (list
+                                             (make-term new-o new-c)))))
+                     l2)]
+                (list (adjoin-term (make-term new-o new-c) 
+                                   (first rest-of-result)) 
+                      (fnext rest-of-result))))))))
 
 (extend-type Poly
   Algebra
   (add [a b]
-    (if (same-variable? (variable a) (variable b))
-      (make-poly (variable a)
-                 (add-terms (term-list a)
-                            (term-list b)))
-      (println "ERROR: Polys not in same var -- ADD-POLY"
+    (if (= (variable a) (variable b))
+      (Poly. (variable a)
+             (add-terms (term-list a)
+                        (term-list b)))
+      (println "ERROR: Polys not in same var -- ADD-POlY"
+               (list a b))))
+  (sub [a b]
+    (if (= (variable a) (variable b))
+      (Poly. (variable a)
+             (add-terms (term-list a)
+                        (negate-terms (term-list b))))
+      (println "ERROR: Polys not in same var -- SUB-POlY"
                (list a b))))
   (mul [a b]
-    (if (same-variable? (variable a) (variable b))
-      (make-poly (variable a)
-                 (mul-terms (term-list a)
-                            (term-list b)))
-      (println "ERROR: Polys not in same var -- MUL-POLY"
-             (list a b)))))
+    (if (= (variable a) (variable b))
+      (Poly. (variable a)
+             (mul-terms (term-list a)
+                        (term-list b)))
+      (println "ERROR: Polys not in same var -- MUl-POlY"
+               (list a b))))
+  (div [a b]
+    (if (= (variable a) (variable b))
+      (let [result (div-terms (term-list a) 
+                              (term-list b))]
+        (Poly. (variable a) (list (first result)
+                                  (fnext result))))
+      (println "ERROR: Polys not in same var -- DIV-POlY"
+               (list a b))))
+  (equal? [a b]
+    (if (and (= (variable a) (variable b))
+             (= (term-list a) (term-list b)))
+      true
+      false)))
+
+
+;; (defn -main []
+;;   "division is buggy...good reason to implement rational polys"
+;;   (println
+;;    (div
+;;     (Poly. 'x '((3 2) (2 2)))
+;;     (Poly. 'x '((3 1) (2 2))))))
+
+;; (defn -main []
+;;   "subtyping still buggy due to redefining math functions for java.lang.Number"
+;;   (println
+;;    (add
+;;     (Rational. (Complex. 1 2) (Complex. 1 4))
+;;     (Rational. (Complex. 1 2) (Complex. 1 4)))))
+
+(defn -main []
+  )
