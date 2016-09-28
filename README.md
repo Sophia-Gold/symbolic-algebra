@@ -1,6 +1,6 @@
 # Symbolic-Algebra.clj
 
-A library for performing algebraic operations across multiple numeric types, originally inspired by the exercise presented in [Structure and Interpretation of Computer Programs](https://mitpress.mit.edu/sicp/) as well as [Richard Zippel’s Weyl package for Common Lisp](http://www.cs.cornell.edu/rz/computer-algebra.html). 
+A library for performing algebraic operations across multiple numeric types, inspired by the exercise presented in [Structure and Interpretation of Computer Programs](https://mitpress.mit.edu/sicp/) as well as [Richard Zippel’s Weyl package for Common Lisp](http://www.cs.cornell.edu/rz/computer-algebra.html). 
 
 This version makes use of Java's protocols to handle what Philip Wadler dubbed the [The Expression Problem](http://homepages.inf.ed.ac.uk/wadler/papers/expression/expression.txt). The use of functions for type coercion allow for dispatch based on one argument and therefore no sacrifice in speed on the JVM. 
 
