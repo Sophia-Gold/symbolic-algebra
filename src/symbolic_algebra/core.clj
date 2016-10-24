@@ -7,7 +7,6 @@
 (defn -Number [this] (num this))
 
 ;TYPES
-;; (defrecord Real [n])
 (defrecord Rational [numerator denominator])
 (defrecord Complex [real imaginary])
 (defrecord Poly [variable term-list])
@@ -203,20 +202,6 @@
      (make-term (order t) 
                 (- (coeff t)))) 
    termlist))
-
-;; ;dense term lists
-;; (defn first-term-dense [term-list] 
-;;   (list
-;;    (first term-list)
-;;    (- (.lastIndexOf term-list) 1)))
-;; (defn adjoin-term-dense [term term-list] 
-;;   (let [exponent (order term)
-;;         len (.lastIndexOf term-list)] 
-;;     (defn iter-adjoin [times terms] 
-;;       (cond (zero? (coeff term)) terms 
-;;             (= exponent times) (cons (coeff term) terms)
-;;             :else (recur (inc times ) (cons 0 terms)))) 
-;;     (iter-adjoin len term-list)))
 
 (defn add-terms [l1 l2]
   (cond
