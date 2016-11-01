@@ -7,3 +7,5 @@ This version makes use of Java's protocols to handle what Philip Wadler dubbed t
 Additionally, the latest version extends the java.lang.Number abstract class as a base type so that generic operations will be dispatched across whatever numerical types Clojure casts to, everything from shorts to doubles to big-ints. In other words, it’s about the closest you’ll get to operator overloading on the JVM.
 
 So far this implements **rationals**, **complex numbers**, and univariate **polynomials**. There are still some bugs with subtyping due to the need to rewrite a handful of Clojure's core math functions to use these generic methods. This means polymorphic types like rationals of complex numbers and rational polynomials are yet to come.
+
+UPDATE: Added reader macros so types look much cleaner on the CLI
