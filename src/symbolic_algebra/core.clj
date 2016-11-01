@@ -1,15 +1,15 @@
-(ns symbolic-algebra.core
-  (gen-class
-   :name Number
-   :extends java.lang.Number
-   :constructors {[ ][ ]}))
-
-(defn -Number [this] (num this))
+(ns symbolic-algebra.core)
 
 ;TYPES
 (defrecord Rational [numerator denominator])
+(defmethod print-method Rational [v ^java.io.Writer w]
+  (.write w (str (:numerator v) "/" (:denominator v))))
 (defrecord Complex [real imaginary])
+(defmethod print-method Complex [v ^java.io.Writer w]
+  (.write w (str (:real v) "i" (:imaginary v))))
 (defrecord Poly [variable term-list])
+(defmethod print-method Poly [v ^java.io.Writer w]
+  (.write w (str (:variable v) ":" (:term-list v))))
 
 ;PROTOCOLS
 (defprotocol Algebra
@@ -21,17 +21,17 @@
 
 ;Maths
 (defn round [n]
-  (if (>= n 0)
+  (if (>= n 0.0)
     (Math/floor n)
     (Math/ceil n)))
 ;; (defn rem [n d]
-;;   (let [q (round (div n d))]
+;;   (let [q (Math/floor (/ n d))]
 ;;     (sub n (mul d q))))
-(defn mod [num div] 
-  (let [m (rem num div)] 
-    (if (or (= m 0) (= (pos? num) (pos? div)))
-      m 
-      (add m div))))
+;; (defn mod [num div] 
+;;   (let [m (rem num div)] 
+;;     (if (or (= m 0) (= (pos? num) (pos? div)))
+;;       m 
+;;       (add m div))))
 (defn gcd [a b]
   (if (= b 0)
     a
@@ -82,8 +82,8 @@
     (cond
       (and (= class-a Complex) (= (imag-part a) 0))  (if (= (class (real-part a)) Rational)                                                      
                                                        (reduce-type (make-rat (real-part a)))                                                               
-                                                       (-Number (real-part a)))
-      (and (= class-a Rational) (= (denom a) 1))  (-Number (numer a))
+                                                       (num (real-part a)))
+      (and (= class-a Rational) (= (denom a) 1))  (num (numer a))
       :else a)))
 
 (extend-type Number
@@ -202,7 +202,6 @@
      (make-term (order t) 
                 (- (coeff t)))) 
    termlist))
-
 (defn add-terms [l1 l2]
   (cond
     (empty? l1) l2
@@ -218,7 +217,6 @@
                                 (add (coeff t1) (coeff t2)))
                      (add-terms (rest-terms l1)
                                 (rest-terms l2)))))))
-
 (defn mul-term-by-all-terms [t1 l]
   (if (empty? l)
       l
@@ -232,7 +230,6 @@
       l1
       (add-terms (mul-term-by-all-terms (first-term l1) l2)
                  (mul-terms (rest-terms l1) l2))))
-
 (defn div-terms [l1 l2]
   (if (empty? l1)
       (list () ())
@@ -293,13 +290,6 @@
 
 
 ;; (defn -main []
-;;   "division is buggy...good reason to implement rational polys"
-;;   (println
-;;    (div
-;;     (Poly. 'x '((3 2) (2 2)))
-;;     (Poly. 'x '((3 1) (2 2))))))
-
-;; (defn -main []
 ;;   "subtyping still buggy due to redefining math functions for java.lang.Number"
 ;;   (println
 ;;    (add
@@ -308,3 +298,4 @@
 
 (defn -main []
   )
+
