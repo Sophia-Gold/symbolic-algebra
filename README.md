@@ -4,9 +4,9 @@ A library for performing algebraic operations across multiple numeric types, ins
 
 Currently this implements **rationals**, **complex numbers**, and univariate **polynomials** as well as any combination thereof. Clojure's protocols are used for single dispatch along with functions for type coercion. The base type extends the java.lang.Number abstract class in order to support all JVM numeric types, everything from shorts to doubles to BigIntegers. Finally, reader macros are used for legibility.
 
-The latest update uses [Stein's Algorithm (Binary GCD)](https://en.wikipedia.org/wiki/Binary_GCD_algorithm) instead of Euclid's to factor rationals,  adds functions convert between dense and sparse polynomials, and comes with a suite of generative tests written using the new [clojure.spec](http://clojure.org/about/spec) library—and therefore now requires Clojure 1.9.0-alpha14.
+The latest update uses [Stein's Algorithm (Binary GCD)](https://en.wikipedia.org/wiki/Binary_GCD_algorithm) instead of Euclid's to factor rationals,  adds functions to convert between polynomials with dense and sparse term lists, and comes with a suite of generative tests written using the new [clojure.spec](http://clojure.org/about/spec) library—and therefore now requires Clojure 1.9.0-alpha14.
 
-##Usage
+##Usage:
 
 ```
 ;; 5+1/2i + 2+1/4i = 7+3/4i
@@ -44,4 +44,4 @@ The latest update uses [Stein's Algorithm (Binary GCD)](https://en.wikipedia.org
 
 ##Known Issues and Future Features
 
-Subtyping is still not perfect (thanks core.spec!) as it requires extending GCD over a Euclidean domain in order to factor rationals and polynomials. In addition, the next version will allow multivariate polynomials (likely as ordered hashmaps) for use with my [Power Series](https://github.com/Sophia-Gold/power-series.clj).
+Subtyping is still not perfect (thanks core.spec!) as it requires extending GCD over a Euclidean domain in order to factor rationals and polynomials. In addition, the next version will allow multivariate polynomials for use with my [Power Series](https://github.com/Sophia-Gold/power-series.clj) package.
