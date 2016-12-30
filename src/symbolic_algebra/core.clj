@@ -44,9 +44,11 @@
   (cond
     (zero? a) b
     (zero? b) a
+    (neg? a) (- a)
+    (neg? b) (- b)
     (and (even? a) (even? b)) (* 2
                                  (stein-gcd (unsigned-bit-shift-right a 1)
-                                              (unsigned-bit-shift-right b 1)))
+                                            (unsigned-bit-shift-right b 1)))
     (and (even? a) (odd? b)) (recur (unsigned-bit-shift-right a 1) b)
     (and (odd? a) (even? b)) (recur a (unsigned-bit-shift-right b 1))
     (and (odd? a) (odd? b)) (recur (unsigned-bit-shift-right (Math/abs (- a b)) 1) (min a b))))
@@ -155,7 +157,7 @@
   (let [class-a (class a)]
     (cond
       (and (= class-a Rational)
-           (= (denom a) 1))                          (int (numer a))
+           (= (denom a) 1))                          (numer a)
       (and (= class-a Complex)
            (= (imag-part a) 0))                      (reduce-type (real-part a))
       (and (= class-a Poly)

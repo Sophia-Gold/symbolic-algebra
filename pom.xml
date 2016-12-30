@@ -15,7 +15,7 @@
   <scm>
     <connection>scm:git:git://github.com/Sophia-Gold/symbolic-algebra.clj.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/Sophia-Gold/symbolic-algebra.clj.git</developerConnection>
-    <tag>02d023e4ace26ba3d9c6997d844412e9a4b490b4
+    <tag>d73ea143f1b1c49ba88adc8887bdb19b92c29c10
 </tag>
     <url>https://github.com/Sophia-Gold/symbolic-algebra.clj</url>
   </scm>
