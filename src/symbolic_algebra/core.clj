@@ -1,15 +1,25 @@
-(ns symbolic-algebra.core)
+(ns symbolic-algebra.core
+  (:require [clojure.spec :as s]
+            [clojure.spec.test :as stest]
+            [clojure.spec.gen :as gen]))
 
 ;TYPES
 (defrecord Rational [numerator denominator])
 (defmethod print-method Rational [v ^java.io.Writer w]
-  (.write w (str (:numerator v) "/" (:denominator v))))
+  (print-method (:numerator v) w)
+  (.write w "/")
+  (print-method (:denominator v) w))
 (defrecord Complex [real imaginary])
 (defmethod print-method Complex [v ^java.io.Writer w]
-  (.write w (str (:real v) "i" (:imaginary v))))
+  (print-method (:real v) w)
+  (.write w "+")
+  (print-method (:imaginary v) w)
+  (.write w "i"))
 (defrecord Poly [variable term-list])
 (defmethod print-method Poly [v ^java.io.Writer w]
-  (.write w (str (:variable v) ":" (:term-list v))))
+  (print-method (:variable v) w)
+  (.write w ":")
+  (print-method (:term-list v) w))
 
 ;PROTOCOLS
 (defprotocol Algebra
@@ -24,20 +34,22 @@
   (if (>= n 0.0)
     (Math/floor n)
     (Math/ceil n)))
-;; (defn rem [n d]
-;;   (let [q (Math/floor (/ n d))]
-;;     (sub n (mul d q))))
-;; (defn mod [num div] 
-;;   (let [m (rem num div)] 
-;;     (if (or (= m 0) (= (pos? num) (pos? div)))
-;;       m 
-;;       (add m div))))
-(defn gcd [a b]
-  (if (= b 0)
-    a
-    (recur b (mod a b))))
 (defn square [x]
   (mul x x))
+(defn gcd [a b]
+  (if (zero? b)
+    a
+    (recur b (mod a b))))
+(defn stein-gcd [a b]
+  (cond
+    (zero? a) b
+    (zero? b) a
+    (and (even? a) (even? b)) (* 2
+                                 (stein-gcd (unsigned-bit-shift-right a 1)
+                                              (unsigned-bit-shift-right b 1)))
+    (and (even? a) (odd? b)) (recur (unsigned-bit-shift-right a 1) b)
+    (and (odd? a) (even? b)) (recur a (unsigned-bit-shift-right b 1))
+    (and (odd? a) (odd? b)) (recur (unsigned-bit-shift-right (Math/abs (- a b)) 1) (min a b))))
 
 ;RATIONALS
 (defn numer [x]
@@ -45,7 +57,7 @@
 (defn denom [x]
   (get x :denominator))
 (defn make-rat [n d]
-  (let [g (gcd n d)]
+  (let [g (stein-gcd n d)]
     (Rational. (div n g) (div d g))))
 
 ;COMPLEX
@@ -62,8 +74,64 @@
 (defn make-from-real-imag [x y]
   (Complex. x y))
 (defn make-from-mag-ang [r a]
-  (Complex. (round (mul r (Math/cos a)))
-            (round (mul r (Math/sin a)))))
+  (Complex. (int (round (mul r (Math/cos a))))
+            (int (round (mul r (Math/sin a))))))
+
+;POLYNOMIALS
+(defn variable [p]
+  (get p :variable))
+(defn term-list [p]
+  (get p :term-list))
+(defn order [term]
+  (first term))
+(defn coeff [term]
+  (fnext term))
+(defn make-term [order coeff]
+  (list order coeff))
+(defn first-term [term-list]
+  (first term-list))
+(defn first-term-sparse [term-list] 
+  (concat
+   (first term-list)
+   (- (count term-list) 1)))
+(defn rest-terms [term-list]
+  (next term-list))
+(defn adjoin-term [term term-list]
+  (if (zero? (coeff term))
+    term-list
+    (cons term term-list)))
+(defn adjoin-term-sparse [term term-list]
+  (if (zero? (coeff term))
+    term-list
+    (cons (coeff term) term-list)))
+(defn dense-to-sparse [p]
+  ;; ugly function :(
+  (defn map-zeros [terms result]
+    (let [f (first-term terms)
+          r (rest-terms terms)]
+      (if (nil? (rest-terms r))
+        (conj
+         result
+         (list (coeff f))
+         (repeat (- (order f) (order (first-term r))) 0))
+        (map-zeros r  (conj
+                       result
+                       (list (coeff f))
+                       (repeat (- (order f) (inc (order (first-term r)))) 0))))))
+  (Poly. (variable p)
+         (reverse
+          (flatten
+           (map-zeros (concat
+                      (term-list p)
+                      (list '(0 0)))
+                      '())))))
+(defn sparse-to-dense [p]
+  (Poly. (variable p)
+         (reverse
+          (filter some?
+                  (map-indexed
+                   #(if (not= %2 0) (list %1 %2))
+                   (reverse (term-list p)))))))
 
 ;TYPE COERCION
 (defn raise-types [a b proc]
@@ -72,18 +140,27 @@
     (cond
       (and (number? a)          (= class-b Rational))  (proc (Rational. a 1) b)
       (and (number? a)          (= class-b Complex))   (proc (Complex. a 0) b)
+      (and (number? a)          (= class-b Poly))      (proc (Poly. (variable b) '('(0 a))) b)
       (and (= class-a Rational) (number? b))           (proc a (Rational. b 1)) 
       (and (= class-a Rational) (= class-b Complex))   (proc (Complex. a 0) b)
+      (and (= class-a Rational) (= class-b Poly))      (proc (Poly. (variable b) '('(0 a))) b)
       (and (= class-a Complex)  (number? b))           (proc a (Complex. b 0))
-      (and (= class-a Complex)  (= class-b Rational))  (proc a (Complex. b 0)))))
+      (and (= class-a Complex)  (= class-b Rational))  (proc a (Complex. b 0))
+      (and (= class-a Complex)  (= class-b Poly))      (proc (Poly. (variable b) '('(0 a))) b)
+      (and (= class-a Poly)     (number? b))           (proc a (Poly. (variable a) '('(0 b))))
+      (and (= class-a Poly)     (= class-b Rational))  (proc a (Poly. (variable a) '('(0 b))))
+      (and (= class-a Poly)     (= class-b Complex))   (proc a (Poly. (variable a) '('(0 b)))))))
 
 (defn reduce-type [a]
   (let [class-a (class a)]
     (cond
-      (and (= class-a Complex) (= (imag-part a) 0))  (if (= (class (real-part a)) Rational)                                                      
-                                                       (reduce-type (make-rat (real-part a)))                                                               
-                                                       (num (real-part a)))
-      (and (= class-a Rational) (= (denom a) 1))  (num (numer a))
+      (and (= class-a Rational)
+           (= (denom a) 1))                          (int (numer a))
+      (and (= class-a Complex)
+           (= (imag-part a) 0))                      (reduce-type (real-part a))
+      (and (= class-a Poly)
+           (empty (rest-terms (term-list a)))
+           (= (order (first-term (term-list a))) 0)) (reduce-type (coeff (first-term (term-list a))))
       :else a)))
 
 (extend-type Number
@@ -139,9 +216,12 @@
       (raise-types a b div)))
   (equal? [a b]
     (if (= (class a) (class b))
-      (if (and (= (numer a) (numer b))
-               (= (denom a) (denom b)))
-        true)
+      (let [simple-a (make-rat (numer a) (denom a))
+            simple-b (make-rat (numer b) (denom b))]
+        (if (and (equal? (numer simple-a) (numer simple-b))
+                 (equal? (denom simple-a) (denom simple-b)))
+          true
+          false))
       (raise-types a b equal?))))
 
 (extend-type Complex
@@ -172,30 +252,12 @@
       (raise-types a b div)))
   (equal? [a b]
     (if (= (class a) (class b))
-      (if (and (= (real-part a) (real-part b))
-               (= (imag-part a) (imag-part b)))
-        true)
+      (if (and (equal? (real-part a) (real-part b))
+               (equal? (imag-part a) (imag-part b)))
+        true
+        false)
       (raise-types a b equal?))))
 
-;POLYNOMIALS
-(defn variable [p]
-  (get p :variable))
-(defn term-list [p]
-  (get p :term-list))
-(defn order [term]
-  (first term))
-(defn coeff [term]
-  (fnext term))
-(defn make-term [order coeff]
-  (list order coeff))
-(defn first-term [term-list]
-  (first term-list))
-(defn rest-terms [term-list]
-  (rest term-list))
-(defn adjoin-term [term term-list]
-  (if (zero? (coeff term))
-    term-list
-    (cons term term-list)))
 (defn negate-terms [termlist] 
   (map  
    (fn [t]
@@ -204,6 +266,7 @@
    termlist))
 (defn add-terms [l1 l2]
   (cond
+    (and (empty? l1) (empty? l2)) '()
     (empty? l1) l2
     (empty? l2) l1
     :else
@@ -219,37 +282,37 @@
                                 (rest-terms l2)))))))
 (defn mul-term-by-all-terms [t1 l]
   (if (empty? l)
-      l
-      (let [t2 (first-term l)]
-        (adjoin-term
-         (make-term (+ (order t1) (order t2))
-                    (mul (coeff t1) (coeff t2)))
-         (mul-term-by-all-terms t1 (rest-terms l))))))
+    l
+    (let [t2 (first-term l)]
+      (adjoin-term
+       (make-term (+ (order t1) (order t2))
+                  (mul (coeff t1) (coeff t2)))
+       (mul-term-by-all-terms t1 (rest-terms l))))))
 (defn mul-terms [l1 l2]
   (if (empty? l1)
-      l1
-      (add-terms (mul-term-by-all-terms (first-term l1) l2)
-                 (mul-terms (rest-terms l1) l2))))
+    l1
+    (add-terms (mul-term-by-all-terms (first-term l1) l2)
+               (mul-terms (rest-terms l1) l2))))
 (defn div-terms [l1 l2]
   (if (empty? l1)
-      (list () ())
-      (let [t1 (first-term l1)
-            t2 (first-term l2)]
-        (if (> (order t2) (order t1))
-            (list () l1)
-            (let [new-c (div (coeff t1) (coeff t2))
-                  new-o (- (order t1) (order t2))]
-              (let [rest-of-result
-                    (div-terms
-                     (add-terms l1
-                                (negate-terms
-                                 (mul-terms l2
-                                            (list
-                                             (make-term new-o new-c)))))
-                     l2)]
-                (list (adjoin-term (make-term new-o new-c) 
-                                   (first rest-of-result)) 
-                      (fnext rest-of-result))))))))
+    l1
+    (let [t1 (first-term l1)
+          t2 (first-term l2)]
+      (if (> (order t2) (order t1))
+        l1
+        (let [new-c (div (coeff t1) (coeff t2))
+              new-o (- (order t1) (order t2))]
+          (let [rest-of-result
+                (div-terms
+                 (add-terms l1
+                            (negate-terms
+                             (mul-terms l2
+                                        (list
+                                         (make-term new-o new-c)))))
+                 l2)]
+            (list (adjoin-term (make-term new-o new-c) 
+                               (first rest-of-result)) 
+                  (fnext rest-of-result))))))))
 
 (extend-type Poly
   Algebra
@@ -258,44 +321,158 @@
       (Poly. (variable a)
              (add-terms (term-list a)
                         (term-list b)))
-      (println "ERROR: Polys not in same var -- ADD-POlY"
+      (println "ERROR: Polys not in same var -- ADD-POLY"
                (list a b))))
   (sub [a b]
     (if (= (variable a) (variable b))
       (Poly. (variable a)
              (add-terms (term-list a)
                         (negate-terms (term-list b))))
-      (println "ERROR: Polys not in same var -- SUB-POlY"
+      (println "ERROR: Polys not in same var -- SUB-POLY"
                (list a b))))
   (mul [a b]
     (if (= (variable a) (variable b))
       (Poly. (variable a)
              (mul-terms (term-list a)
                         (term-list b)))
-      (println "ERROR: Polys not in same var -- MUl-POlY"
+      (println "ERROR: Polys not in same var -- MUL-POLY"
                (list a b))))
   (div [a b]
     (if (= (variable a) (variable b))
       (let [result (div-terms (term-list a) 
                               (term-list b))]
-        (Poly. (variable a) (list (first result)
-                                  (fnext result))))
-      (println "ERROR: Polys not in same var -- DIV-POlY"
+        (Poly. (variable a) (first result)))
+      (println "ERROR: Polys not in same var -- DIV-POLY"
                (list a b))))
   (equal? [a b]
-    (if (and (= (variable a) (variable b))
-             (= (term-list a) (term-list b)))
-      true
-      false)))
+    (let [sparse-a (dense-to-sparse a)
+          sparse-b (dense-to-sparse b)]
+      (if (= (variable sparse-a) (variable sparse-b))
+        (not-any? false? 
+                  (map equal? (term-list sparse-a) (term-list sparse-b)))
+      false))))
 
-
-;; (defn -main []
-;;   "subtyping still buggy due to redefining math functions for java.lang.Number"
-;;   (println
-;;    (add
-;;     (Rational. (Complex. 1 2) (Complex. 1 4))
-;;     (Rational. (Complex. 1 2) (Complex. 1 4)))))
 
 (defn -main []
   )
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; TESTS
+
+(def non-zero-int
+  (gen/such-that (complement zero?)
+                 (s/gen int?)))
+
+(s/def ::rational
+  (s/with-gen #(instance? Rational %)
+              (fn [] (gen/fmap #(->Rational (first %) (second %))
+                               (gen/tuple
+                                (s/gen int?)
+                                non-zero-int)))))
+(s/def ::rational-rational
+  (s/with-gen #(instance? Rational %)
+              (fn [] (gen/fmap #(->Rational (first %) (second %))
+                               (gen/tuple
+                                (s/gen ::rational)
+                                (s/gen ::rational))))))
+(s/def ::rational-complex-numer
+  (s/with-gen #(instance? Rational %)
+              (fn [] (gen/fmap #(->Rational (first %) (second %))
+                               (gen/tuple
+                                (s/gen ::complex)
+                                (s/gen int?))))))
+(s/def ::rational-complex-denom
+  (s/with-gen #(instance? Rational %)
+              (fn [] (gen/fmap #(->Rational (first %) (second %))
+                               (gen/tuple
+                                (s/gen int?)
+                                (s/gen ::complex))))))
+(s/def ::rational-complex
+  (s/with-gen #(instance? Rational %)
+              (fn [] (gen/fmap #(->Rational (first %) (second %))
+                               (gen/tuple
+                                (s/gen ::complex)
+                                (s/gen ::complex))))))
+(s/def ::complex
+  (s/with-gen #(instance? Complex %)
+              (fn [] (gen/fmap #(->Complex (first %) (second %))
+                               (gen/tuple
+                                (s/gen int?)
+                                non-zero-int)))))
+(s/def ::complex-rational-real
+  (s/with-gen #(instance? Complex %)
+              (fn [] (gen/fmap #(->Complex (first %) (second %))
+                               (gen/tuple
+                                (s/gen ::rational)
+                                non-zero-int)))))
+(s/def ::complex-rational-imag
+  (s/with-gen #(instance? Complex %)
+              (fn [] (gen/fmap #(->Complex (first %) (second %))
+                               (gen/tuple
+                                (s/gen int?)
+                                (s/gen ::rational))))))
+(s/def ::complex-rational
+  (s/with-gen #(instance? Complex %)
+              (fn [] (gen/fmap #(->Complex (first %) (second %))
+                               (gen/tuple
+                                (s/gen ::rational)
+                                (s/gen ::rational))))))
+
+(s/def ::mono (s/or :int int?
+                    :rational ::rational
+                    :rational-:rational ::rational-rational
+                    :rational-complex-numer ::rational-complex-numer
+                    :rational-complex-denom ::rational-complex-denom
+                    :rational-complex ::rational-complex
+                    :complex ::complex
+                    :complex-rational ::complex-rational-real
+                    :complex-rational-imag ::complex-rational-imag
+                    :complex-rational ::complex-rational))
+
+(s/def ::poly
+  (s/with-gen #(instance? Poly %)
+    (fn [] (gen/fmap #(->Poly 'x (list
+                                  (list 5 (nth % 0))
+                                  (list 4 (nth % 1))
+                                  (list 3 (nth % 2))
+                                  (list 0 (nth % 3))))
+                     (gen/tuple
+                      (s/gen ::mono)
+                      (s/gen ::mono)
+                      (s/gen ::mono)
+                      (s/gen ::mono))))))
+
+(s/def ::all (s/or :mono ::mono
+                   :poly ::poly))
+
+(s/fdef add
+        :args (s/cat :a ::all :b ::all)
+        :ret any?)
+(s/fdef sub
+        :args (s/cat :a ::all :b ::all)
+        :ret any?)
+(s/fdef mul
+        :args (s/cat :a ::all :b ::all)
+        :ret any?)
+(s/fdef div
+        :args (s/cat :a ::all :b ::all)
+        :ret any?)
+(s/fdef equal?
+        :args (s/cat :a ::all :b ::all)
+        :ret boolean?)
+
+;; (stest/summarize-results (stest/check `add))
+;; (s/exercise-fn `add)
+
+;; (stest/summarize-results (stest/check `sub))
+;; (s/exercise-fn `sub)
+
+;; (stest/summarize-results (stest/check `mul))
+;; (s/exercise-fn `mul)
+
+;; (stest/summarize-results (stest/check `div))
+;; (s/exercise-fn `div)
+
+;; (stest/summarize-results (stest/check `equal?))
+;; (s/exercise-fn `equal?)
