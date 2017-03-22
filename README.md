@@ -1,4 +1,4 @@
-# Symbolic-Algebra.clj
+# Symbolic Algebra
 
 A library for performing algebraic operations across multiple numeric types, inspired by the exercise presented in [Structure and Interpretation of Computer Programs](https://mitpress.mit.edu/sicp/) as well as [Richard Zippel’s Weyl package for Common Lisp](http://www.cs.cornell.edu/rz/computer-algebra.html). 
 
@@ -6,7 +6,7 @@ Currently this implements **rationals**, **complex numbers**, and univariate **p
 
 The latest update uses [Stein's Algorithm (Binary GCD)](https://en.wikipedia.org/wiki/Binary_GCD_algorithm) instead of Euclid's to factor rationals,  adds functions to convert between polynomials with dense and sparse term lists, and comes with a suite of generative tests written using the new [clojure.spec](http://clojure.org/about/spec) library—and therefore now requires Clojure 1.9.0-alpha14.
 
-##Usage:
+## Usage:
 
 ```
 ;; 5+1/2i + 2+1/4i = 7+3/4i
@@ -42,6 +42,6 @@ The latest update uses [Stein's Algorithm (Binary GCD)](https://en.wikipedia.org
 => y:(1 2 0 3 -2 -5)
 ```
 
-##Known Issues and Future Features
+## Known Issues and Future Features
 
 Subtyping is still not perfect (thanks core.spec!) as it requires extending GCD over a Euclidean domain in order to factor rationals and polynomials. In addition, the next version will allow multivariate polynomials for use with my [Power Series](https://github.com/Sophia-Gold/power-series.clj) package.
