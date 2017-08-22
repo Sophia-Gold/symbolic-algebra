@@ -15,7 +15,7 @@
   <scm>
     <connection>scm:git:git://github.com/Sophia-Gold/symbolic-algebra.clj.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/Sophia-Gold/symbolic-algebra.clj.git</developerConnection>
-    <tag>d73ea143f1b1c49ba88adc8887bdb19b92c29c10
+    <tag>667fb7369d8c59846d7d3efe2b60c6c39691deca
 </tag>
     <url>https://github.com/Sophia-Gold/symbolic-algebra.clj</url>
   </scm>
@@ -58,9 +58,6 @@
       </releases>
     </repository>
   </repositories>
-  <dependencyManagement>
-    <dependencies/>
-  </dependencyManagement>
   <dependencies>
     <dependency>
       <groupId>org.clojure</groupId>

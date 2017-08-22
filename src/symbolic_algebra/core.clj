@@ -3,13 +3,15 @@
             [clojure.spec.test :as stest]
             [clojure.spec.gen :as gen]))
 
+;; (set! *warn-on-reflection* true)
+
 ;TYPES
-(defrecord Rational [numerator denominator])
+(defrecord Rational [^long numerator ^long denominator])
 (defmethod print-method Rational [v ^java.io.Writer w]
   (print-method (:numerator v) w)
   (.write w "/")
   (print-method (:denominator v) w))
-(defrecord Complex [real imaginary])
+(defrecord Complex [^long real ^long imaginary])
 (defmethod print-method Complex [v ^java.io.Writer w]
   (print-method (:real v) w)
   (.write w "+")
@@ -36,31 +38,6 @@
     (Math/ceil n)))
 (defn square [x]
   (mul x x))
-(defn gcd [a b]
-  (if (zero? b)
-    a
-    (recur b (mod a b))))
-(defn stein-gcd [a b]
-  (cond
-    (zero? a) b
-    (zero? b) a
-    (neg? a) (- a)
-    (neg? b) (- b)
-    (and (even? a) (even? b)) (* 2
-                                 (stein-gcd (unsigned-bit-shift-right a 1)
-                                            (unsigned-bit-shift-right b 1)))
-    (and (even? a) (odd? b)) (recur (unsigned-bit-shift-right a 1) b)
-    (and (odd? a) (even? b)) (recur a (unsigned-bit-shift-right b 1))
-    (and (odd? a) (odd? b)) (recur (unsigned-bit-shift-right (Math/abs (- a b)) 1) (min a b))))
-
-;RATIONALS
-(defn numer [x]
-  (get x :numerator))
-(defn denom [x]
-  (get x :denominator))
-(defn make-rat [n d]
-  (let [g (stein-gcd n d)]
-    (Rational. (div n g) (div d g))))
 
 ;COMPLEX
 (defn real-part [rect]
@@ -92,48 +69,104 @@
   (list order coeff))
 (defn first-term [term-list]
   (first term-list))
-(defn first-term-sparse [term-list] 
+(defn first-term-dense [term-list] 
   (concat
    (first term-list)
    (- (count term-list) 1)))
 (defn rest-terms [term-list]
   (next term-list))
 (defn adjoin-term [term term-list]
-  (if (zero? (coeff term))
-    term-list
-    (cons term term-list)))
-(defn adjoin-term-sparse [term term-list]
+  (cons term term-list))
+(defn adjoin-term-dense [term term-list]
   (if (zero? (coeff term))
     term-list
     (cons (coeff term) term-list)))
-(defn dense-to-sparse [p]
-  ;; ugly function :(
-  (defn map-zeros [terms result]
-    (let [f (first-term terms)
-          r (rest-terms terms)]
-      (if (nil? (rest-terms r))
-        (conj
-         result
-         (list (coeff f))
-         (repeat (- (order f) (order (first-term r))) 0))
-        (map-zeros r  (conj
-                       result
-                       (list (coeff f))
-                       (repeat (- (order f) (inc (order (first-term r)))) 0))))))
-  (Poly. (variable p)
-         (reverse
-          (flatten
-           (map-zeros (concat
-                      (term-list p)
-                      (list '(0 0)))
-                      '())))))
 (defn sparse-to-dense [p]
-  (Poly. (variable p)
-         (reverse
-          (filter some?
-                  (map-indexed
-                   #(if (not= %2 0) (list %1 %2))
-                   (reverse (term-list p)))))))
+  (let [poly (reverse (term-list p))
+        diff-terms (map #(vector (dec (- (first %1) (first %2))) (second %1))
+                        (next poly) poly)]
+    (->> diff-terms
+         (cons (first poly))
+         (mapcat #(concat (repeat (first %) 0) [(second %)]))
+         (reverse)
+         (#(Poly. (variable p) %))))) 
+(defn dense-to-sparse [p]
+  (->> (term-list p)
+       (reverse)
+       (map-indexed #(if (not= %2 0) (list %1 %2)))
+       (filter some?)
+       (reverse)
+       (#(Poly. (variable p) %))))
+ 
+;RATIONALS
+(defn numer [x]
+  (get x :numerator))
+(defn denom [x]
+  (get x :denominator))
+
+;; (defn gcd [a b]
+;;   (if (zero? b)
+;;     a
+;;     (recur b (mod a b))))
+(defn gcd [a b]
+  (cond
+    (zero? a) b
+    (zero? b) a
+    (neg? a) (- a)
+    (neg? b) (- b)
+    (and (even? a) (even? b)) (* 2
+                                 (gcd (unsigned-bit-shift-right a 1)
+                                      (unsigned-bit-shift-right b 1)))
+    (and (even? a) (odd? b)) (recur (unsigned-bit-shift-right a 1) b)
+    (and (odd? a) (even? b)) (recur a (unsigned-bit-shift-right b 1))
+    (and (odd? a) (odd? b)) (recur (unsigned-bit-shift-right (Math/abs (- a b)) 1) (min a b))))
+(defn extended-gcd [a b]
+  (let [class-a (class a)]
+    (cond
+      (number? a)        (gcd a b)
+      (= class-a Rational) (reduce gcd (list (numer a) (denom a) (numer b) (denom b)))
+      (= class-a Complex)  (reduce gcd (list (real-part a) (imag-part a) (real-part b) (imag-part b)))
+      (= class-a Poly)     (reduce gcd (concat (term-list a) (term-list b))))))
+;; (defn extended-gcd [a b]
+;;   (let [class-a (class a)
+;;         class-b (class b)]
+;;     (cond
+;;       (and (number? a)
+;;            (number? b))           (gcd a b)
+;;       (and (number? a)
+;;            (= class-b Rational))  (reduce gcd (list a (numer b) (denom b)))
+;;       (and (number? a)
+;;            (= class-b Complex))   (reduce gcd (list a (real-part b) (imag-part b)))
+;;       (and (number? a)
+;;            (= class-b Poly))      (reduce gcd (concat a (term-list b)))
+;;       (and (= class-a Rational)
+;;            (number? b))           (reduce gcd (list (numer a) (denom a) b))
+;;       (and (= class-a Rational)
+;;            (= class-b Rational))  (reduce gcd (list (numer a) (denom a) (numer b) (denom b)))
+;;       (and (= class-a Rational)
+;;            (= class-b Complex))   (reduce gcd (list (numer a) (denom a) (real-part b) (imag-part b)))
+;;       (and (= class-a Rational)
+;;            (= class-b Poly))      (reduce gcd (concat (numer a) (denom a) (term-list b)))
+;;       (and (= class-a Complex)
+;;            (number? b))           (reduce gcd (list (real-part a) (imag-part a) b))
+;;       (and (= class-a Complex)
+;;            (= class-b Rational))  (reduce gcd (list (real-part a) (imag-part a) (numer b) (denom b)))
+;;       (and (= class-a Complex)
+;;            (= class-b Complex))   (reduce gcd (list (real-part a) (imag-part a) (real-part b) (imag-part b)))
+;;       (and (= class-a Complex)
+;;            (= class-b Poly))      (reduce gcd (concat (real-part a) (imag-part a) (term-list b)))
+;;       (and (= class-a Poly)
+;;            (number? b))           (reduce gcd (concat (term-list a) b))
+;;       (and (= class-a Poly)
+;;            (= class-b Rational))  (reduce gcd (concat (term-list a) (numer b) (denom b)))
+;;       (and (= class-a Poly)
+;;            (= class-b Complex))   (reduce gcd (concat (term-list a) (real-part b) (imag-part b)))
+;;       (and (= class-a Poly)
+;;            (= class-b Poly))      (reduce gcd (concat (term-list a) (term-list b))))))
+
+(defn make-rat [n d]
+  (let [g (extended-gcd n d)]
+    (Rational. (div n g) (div d g))))
 
 ;TYPE COERCION
 (defn raise-types [a b proc]
@@ -142,16 +175,16 @@
     (cond
       (and (number? a)          (= class-b Rational))  (proc (Rational. a 1) b)
       (and (number? a)          (= class-b Complex))   (proc (Complex. a 0) b)
-      (and (number? a)          (= class-b Poly))      (proc (Poly. (variable b) '('(0 a))) b)
+      (and (number? a)          (= class-b Poly))      (proc (Poly. (variable b) (list (list 0 a))) b)
       (and (= class-a Rational) (number? b))           (proc a (Rational. b 1)) 
       (and (= class-a Rational) (= class-b Complex))   (proc (Complex. a 0) b)
-      (and (= class-a Rational) (= class-b Poly))      (proc (Poly. (variable b) '('(0 a))) b)
+      (and (= class-a Rational) (= class-b Poly))      (proc (Poly. (variable b) (list (list 0 a))) b)
       (and (= class-a Complex)  (number? b))           (proc a (Complex. b 0))
       (and (= class-a Complex)  (= class-b Rational))  (proc a (Complex. b 0))
-      (and (= class-a Complex)  (= class-b Poly))      (proc (Poly. (variable b) '('(0 a))) b)
-      (and (= class-a Poly)     (number? b))           (proc a (Poly. (variable a) '('(0 b))))
-      (and (= class-a Poly)     (= class-b Rational))  (proc a (Poly. (variable a) '('(0 b))))
-      (and (= class-a Poly)     (= class-b Complex))   (proc a (Poly. (variable a) '('(0 b)))))))
+      (and (= class-a Complex)  (= class-b Poly))      (proc (Poly. (variable b) (list (list 0 a))) b)
+      (and (= class-a Poly)     (number? b))           (proc a (Poly. (variable a) (list (list 0 b))))
+      (and (= class-a Poly)     (= class-b Rational))  (proc a (Poly. (variable a) (list (list 0 b))))
+      (and (= class-a Poly)     (= class-b Complex))   (proc a (Poly. (variable a) (list (list 0 b)))))))
 
 (defn reduce-type [a]
   (let [class-a (class a)]
@@ -264,7 +297,7 @@
   (map  
    (fn [t]
      (make-term (order t) 
-                (- (coeff t)))) 
+                (sub 0 (coeff t)))) 
    termlist))
 (defn add-terms [l1 l2]
   (cond
@@ -319,40 +352,55 @@
 (extend-type Poly
   Algebra
   (add [a b]
-    (if (= (variable a) (variable b))
-      (Poly. (variable a)
-             (add-terms (term-list a)
-                        (term-list b)))
-      (println "ERROR: Polys not in same var -- ADD-POLY"
-               (list a b))))
+    (if (= (class a) (class b))
+      (reduce-type
+       (if (= (variable a) (variable b))
+         (Poly. (variable a)
+                (add-terms (term-list a)
+                           (term-list b)))
+         (println "ERROR: Polys not in same var -- ADD-POLY"
+                  (list a b))))
+      (raise-types a b add)))
   (sub [a b]
-    (if (= (variable a) (variable b))
-      (Poly. (variable a)
-             (add-terms (term-list a)
-                        (negate-terms (term-list b))))
-      (println "ERROR: Polys not in same var -- SUB-POLY"
-               (list a b))))
+    (if (= (class a) (class b))
+      (reduce-type
+       (if (= (variable a) (variable b))
+         (Poly. (variable a)
+                (add-terms (term-list a)
+                           (negate-terms (term-list b))))
+         (println "ERROR: Polys not in same var -- SUB-POLY"
+                  (list a b))))
+      (raise-types a b sub)))
   (mul [a b]
-    (if (= (variable a) (variable b))
-      (Poly. (variable a)
-             (mul-terms (term-list a)
-                        (term-list b)))
-      (println "ERROR: Polys not in same var -- MUL-POLY"
-               (list a b))))
+    (if (= (class a) (class b))
+      (reduce-type
+       (if (= (variable a) (variable b))
+         (Poly. (variable a)
+                (mul-terms (term-list a)
+                           (term-list b)))
+         (println "ERROR: Polys not in same var -- MUL-POLY"
+                  (list a b))))
+      (raise-types a b mul)))
   (div [a b]
-    (if (= (variable a) (variable b))
-      (let [result (div-terms (term-list a) 
-                              (term-list b))]
-        (Poly. (variable a) (first result)))
-      (println "ERROR: Polys not in same var -- DIV-POLY"
-               (list a b))))
+    (if (= (class a) (class b))
+      (reduce-type
+       (if (= (variable a) (variable b))
+         (let [result (div-terms (term-list a) 
+                                 (term-list b))]
+           (Poly. (variable a) (first result)))
+         (println "ERROR: Polys not in same var -- DIV-POLY"
+                  (list a b))))
+      (raise-types a b div)))
   (equal? [a b]
-    (let [sparse-a (dense-to-sparse a)
-          sparse-b (dense-to-sparse b)]
-      (if (= (variable sparse-a) (variable sparse-b))
-        (not-any? false? 
-                  (map equal? (term-list sparse-a) (term-list sparse-b)))
-      false))))
+    (if (= (class a) (class b))
+      (reduce-type
+       (let [sparse-a (dense-to-sparse a)
+             sparse-b (dense-to-sparse b)]
+         (if (= (variable sparse-a) (variable sparse-b))
+           (not-any? false? 
+                     (map equal? (term-list sparse-a) (term-list sparse-b)))
+           false)))
+      (raise-types a b equal?))))
 
 
 (defn -main []
@@ -370,7 +418,7 @@
   (s/with-gen #(instance? Rational %)
               (fn [] (gen/fmap #(->Rational (first %) (second %))
                                (gen/tuple
-                                (s/gen int?)
+                                non-zero-int
                                 non-zero-int)))))
 (s/def ::rational-rational
   (s/with-gen #(instance? Rational %)
@@ -401,7 +449,7 @@
               (fn [] (gen/fmap #(->Complex (first %) (second %))
                                (gen/tuple
                                 (s/gen int?)
-                                non-zero-int)))))
+                                (s/gen int?))))))
 (s/def ::complex-rational-real
   (s/with-gen #(instance? Complex %)
               (fn [] (gen/fmap #(->Complex (first %) (second %))
@@ -421,16 +469,17 @@
                                 (s/gen ::rational)
                                 (s/gen ::rational))))))
 
-(s/def ::mono (s/or :int int?
+(s/def ::mono (s/or ;; :int int?
                     :rational ::rational
                     :rational-:rational ::rational-rational
-                    :rational-complex-numer ::rational-complex-numer
-                    :rational-complex-denom ::rational-complex-denom
-                    :rational-complex ::rational-complex
+                    ;; :rational-complex-numer ::rational-complex-numer
+                    ;; :rational-complex-denom ::rational-complex-denom
+                    ;; :rational-complex ::rational-complex
                     :complex ::complex
-                    :complex-rational ::complex-rational-real
-                    :complex-rational-imag ::complex-rational-imag
-                    :complex-rational ::complex-rational))
+                    ;; :complex-rational ::complex-rational-real
+                    ;; :complex-rational-imag ::complex-rational-imag
+                    ;; :complex-rational ::complex-rational
+                    ))
 
 (s/def ::poly
   (s/with-gen #(instance? Poly %)
@@ -446,7 +495,8 @@
                       (s/gen ::mono))))))
 
 (s/def ::all (s/or :mono ::mono
-                   :poly ::poly))
+                   ;; :poly ::poly
+                   ))
 
 (s/fdef add
         :args (s/cat :a ::all :b ::all)

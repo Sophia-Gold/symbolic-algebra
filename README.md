@@ -34,11 +34,11 @@ The latest update uses [Stein's Algorithm (Binary GCD)](https://en.wikipedia.org
 => true
 ```
 ```
-;;polynomials must be in dense form to operate on
+;;polynomials must be in sparse form to operate on
 ;; y^5 + 2y^4 + 3y^2 - 2y - 5
-=> (sparse-to-dense (Poly. 'y '(1 2 0 3 -2 -5)))
+=> (dense-to-sparse (Poly. 'y '(1 2 0 3 -2 -5)))
 => y:((5 1) (4 2) (2 3) (1 -2) (0 -5))
-=> (dense-to-sparse (Poly. 'y '((5 1) (4 2) (2 3) (1 -2) (0 -5))))
+=> (sparse-to-dense (Poly. 'y '((5 1) (4 2) (2 3) (1 -2) (0 -5))))
 => y:(1 2 0 3 -2 -5)
 ```
 
