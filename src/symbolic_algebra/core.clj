@@ -4,6 +4,7 @@
             [clojure.spec.gen :as gen]))
 
 ;; (set! *warn-on-reflection* true)
+;; (set! *unchecked-math* :warn-on-boxed)
 
 ;TYPES
 (defrecord Rational [^long numerator ^long denominator])
@@ -119,7 +120,9 @@
                                       (unsigned-bit-shift-right b 1)))
     (and (even? a) (odd? b)) (recur (unsigned-bit-shift-right a 1) b)
     (and (odd? a) (even? b)) (recur a (unsigned-bit-shift-right b 1))
-    (and (odd? a) (odd? b)) (recur (unsigned-bit-shift-right (Math/abs (- a b)) 1) (min a b))))
+    (and (odd? a) (odd? b)) (recur (unsigned-bit-shift-right
+                                    (Math/abs (long (- a b))) ;; coerce to avoid reflection
+                                    1) (min a b))))
 (defn extended-gcd [a b]
   (let [class-a (class a)]
     (cond
@@ -127,42 +130,6 @@
       (= class-a Rational) (reduce gcd (list (numer a) (denom a) (numer b) (denom b)))
       (= class-a Complex)  (reduce gcd (list (real-part a) (imag-part a) (real-part b) (imag-part b)))
       (= class-a Poly)     (reduce gcd (concat (term-list a) (term-list b))))))
-;; (defn extended-gcd [a b]
-;;   (let [class-a (class a)
-;;         class-b (class b)]
-;;     (cond
-;;       (and (number? a)
-;;            (number? b))           (gcd a b)
-;;       (and (number? a)
-;;            (= class-b Rational))  (reduce gcd (list a (numer b) (denom b)))
-;;       (and (number? a)
-;;            (= class-b Complex))   (reduce gcd (list a (real-part b) (imag-part b)))
-;;       (and (number? a)
-;;            (= class-b Poly))      (reduce gcd (concat a (term-list b)))
-;;       (and (= class-a Rational)
-;;            (number? b))           (reduce gcd (list (numer a) (denom a) b))
-;;       (and (= class-a Rational)
-;;            (= class-b Rational))  (reduce gcd (list (numer a) (denom a) (numer b) (denom b)))
-;;       (and (= class-a Rational)
-;;            (= class-b Complex))   (reduce gcd (list (numer a) (denom a) (real-part b) (imag-part b)))
-;;       (and (= class-a Rational)
-;;            (= class-b Poly))      (reduce gcd (concat (numer a) (denom a) (term-list b)))
-;;       (and (= class-a Complex)
-;;            (number? b))           (reduce gcd (list (real-part a) (imag-part a) b))
-;;       (and (= class-a Complex)
-;;            (= class-b Rational))  (reduce gcd (list (real-part a) (imag-part a) (numer b) (denom b)))
-;;       (and (= class-a Complex)
-;;            (= class-b Complex))   (reduce gcd (list (real-part a) (imag-part a) (real-part b) (imag-part b)))
-;;       (and (= class-a Complex)
-;;            (= class-b Poly))      (reduce gcd (concat (real-part a) (imag-part a) (term-list b)))
-;;       (and (= class-a Poly)
-;;            (number? b))           (reduce gcd (concat (term-list a) b))
-;;       (and (= class-a Poly)
-;;            (= class-b Rational))  (reduce gcd (concat (term-list a) (numer b) (denom b)))
-;;       (and (= class-a Poly)
-;;            (= class-b Complex))   (reduce gcd (concat (term-list a) (real-part b) (imag-part b)))
-;;       (and (= class-a Poly)
-;;            (= class-b Poly))      (reduce gcd (concat (term-list a) (term-list b))))))
 
 (defn make-rat [n d]
   (let [g (extended-gcd n d)]

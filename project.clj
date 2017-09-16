@@ -1,4 +1,4 @@
-(defproject symbolic-algebra "0.5.0"
+(defproject symbolic-algebra "0.5.1"
   :description "symbolic algebra library with numerical tower"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
