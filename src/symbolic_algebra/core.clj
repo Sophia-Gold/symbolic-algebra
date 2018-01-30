@@ -1,7 +1,8 @@
 (ns symbolic-algebra.core
-  (:require [clojure.spec :as s]
-            [clojure.spec.test :as stest]
-            [clojure.spec.gen :as gen]))
+  (:gen-class)
+  (:require [clojure.spec.alpha :as s]
+            [clojure.spec.test.alpha :as stest]
+            [clojure.spec.gen.alpha :as gen]))
 
 ;; (set! *warn-on-reflection* true)
 ;; (set! *unchecked-math* :warn-on-boxed)

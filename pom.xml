@@ -3,7 +3,7 @@
   <groupId>symbolic-algebra</groupId>
   <artifactId>symbolic-algebra</artifactId>
   <packaging>jar</packaging>
-  <version>0.5.0</version>
+  <version>0.5.1</version>
   <name>symbolic-algebra</name>
   <description>symbolic algebra library with numerical tower</description>
   <licenses>
@@ -13,11 +13,9 @@
     </license>
   </licenses>
   <scm>
-    <connection>scm:git:git://github.com/Sophia-Gold/symbolic-algebra.clj.git</connection>
-    <developerConnection>scm:git:ssh://git@github.com/Sophia-Gold/symbolic-algebra.clj.git</developerConnection>
-    <tag>667fb7369d8c59846d7d3efe2b60c6c39691deca
+    <tag>12fb3807253a616e9b01c7dca5dc564cd32bf0c2
 </tag>
-    <url>https://github.com/Sophia-Gold/symbolic-algebra.clj</url>
+    <url/>
   </scm>
   <build>
     <sourceDirectory>src</sourceDirectory>
@@ -62,7 +60,7 @@
     <dependency>
       <groupId>org.clojure</groupId>
       <artifactId>clojure</artifactId>
-      <version>1.9.0-alpha14</version>
+      <version>1.9.0</version>
     </dependency>
     <dependency>
       <groupId>org.clojure</groupId>
@@ -73,6 +71,16 @@
       <groupId>org.clojure</groupId>
       <artifactId>test.generative</artifactId>
       <version>0.5.2</version>
+    </dependency>
+    <dependency>
+      <groupId>org.clojure</groupId>
+      <artifactId>spec.alpha</artifactId>
+      <version>0.1.143</version>
+    </dependency>
+    <dependency>
+      <groupId>org.clojure</groupId>
+      <artifactId>core.specs.alpha</artifactId>
+      <version>0.1.24</version>
     </dependency>
   </dependencies>
 </project>
